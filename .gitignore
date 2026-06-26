@@ -1,4 +1,1 @@
-*.csv
-__pycache__/
-*.pyc
-.env
+# 不忽略 CSV 样本数据
