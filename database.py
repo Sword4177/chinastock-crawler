@@ -1,0 +1,52 @@
+import sqlite3
+from config import DB_PATH
+
+
+def get_conn():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db():
+    conn = get_conn()
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS hot_rank (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            source      TEXT NOT NULL,
+            rank        INTEGER,
+            stock_code  TEXT,
+            stock_name  TEXT,
+            score       REAL,
+            collected_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS news (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            source      TEXT NOT NULL,
+            stock_code  TEXT,
+            title       TEXT,
+            content     TEXT,
+            sentiment   REAL,
+            published_at TEXT,
+            collected_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS capital_flow (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            market      TEXT NOT NULL,
+            trade_date  TEXT NOT NULL,
+            net_inflow  REAL,
+            buy_amount  REAL,
+            sell_amount REAL,
+            collected_at TEXT NOT NULL,
+            UNIQUE(market, trade_date)
+        );
+    """)
+    conn.commit()
+    conn.close()
+
+
+if __name__ == "__main__":
+    init_db()
+    print("数据库初始化完成:", DB_PATH)

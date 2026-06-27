@@ -1,2 +1,4 @@
-akshare
-pandas
+akshare==1.18.64
+pandas==3.0.1
+adata==2.9.5
+requests==2.33.1
