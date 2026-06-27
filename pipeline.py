@@ -9,6 +9,7 @@ from collect_a_sentiment import (
     collect_xueqiu_hot, collect_xueqiu_follow, collect_investor_qa,
 )
 from collect_hk_sentiment import collect_southbound_flow, collect_hk_hot_rank
+from collect_global_sentiment import collect_av_news
 
 BULLISH_WORDS = ["涨", "突破", "利好", "增长", "超预期", "买入", "新高", "强势", "上涨", "盈利"]
 BEARISH_WORDS = ["跌", "暴跌", "利空", "亏损", "低迷", "卖出", "新低", "弱势", "下跌", "亏损"]
@@ -80,9 +81,10 @@ def run():
     for code in top_stocks:
         collect_stock_news(code)
 
-    print("\n--- Step 4: 财新新闻 + 互动易问答 ---")
+    print("\n--- Step 4: 财新新闻 + 互动易问答 + 全球宏观 ---")
     collect_telegraph()
     collect_investor_qa()
+    collect_av_news()
 
     print("\n--- Step 5: 情感打分 ---")
     update_news_sentiment()

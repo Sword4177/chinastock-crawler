@@ -23,6 +23,8 @@ jobs:
 
       - name: Run daily pipeline
         run: python pipeline.py
+        env:
+          ALPHA_VANTAGE_KEY: ${{ secrets.ALPHA_VANTAGE_KEY }}
 
       - name: Upload SQLite database
         uses: actions/upload-artifact@v4

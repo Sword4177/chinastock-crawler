@@ -15,3 +15,6 @@ HK_WATCH_LIST = [
 ]
 
 DB_PATH = "chinastocks.db"
+
+import os
+ALPHA_VANTAGE_KEY = os.environ.get("ALPHA_VANTAGE_KEY", "")
