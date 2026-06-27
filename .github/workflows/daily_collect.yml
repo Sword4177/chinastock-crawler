@@ -8,9 +8,13 @@ on:
 jobs:
   collect:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write        # 允许 push DB 回仓库
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -21,14 +25,28 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Restore database from previous run
+        uses: actions/cache/restore@v4
+        with:
+          path: chinastocks.db
+          key: chinastocks-db-${{ github.run_id }}
+          restore-keys: |
+            chinastocks-db-
+
       - name: Run daily pipeline
         run: python pipeline.py
         env:
           ALPHA_VANTAGE_KEY: ${{ secrets.ALPHA_VANTAGE_KEY }}
 
-      - name: Upload SQLite database
+      - name: Save database for next run
+        uses: actions/cache/save@v4
+        with:
+          path: chinastocks.db
+          key: chinastocks-db-${{ github.run_id }}
+
+      - name: Upload SQLite database as artifact
         uses: actions/upload-artifact@v4
         with:
           name: chinastocks-db-${{ github.run_id }}
           path: chinastocks.db
-          retention-days: 30
+          retention-days: 90
