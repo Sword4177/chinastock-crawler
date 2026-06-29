@@ -8,7 +8,7 @@ from collect_a_sentiment import (
     collect_hot_rank, collect_hot_up_rank, collect_stock_news, collect_telegraph,
     collect_xueqiu_hot, collect_xueqiu_follow, collect_investor_qa,
 )
-from collect_hk_sentiment import collect_southbound_flow, collect_hk_hot_rank
+from collect_hk_sentiment import collect_southbound_flow, collect_hk_hot_rank, collect_xueqiu_hk_quote
 from collect_global_sentiment import collect_av_news
 
 BULLISH_WORDS = ["涨", "突破", "利好", "增长", "超预期", "买入", "新高", "强势", "上涨", "盈利"]
@@ -74,6 +74,7 @@ def run():
     print("\n--- Step 2: 港股数据 ---")
     collect_southbound_flow()
     collect_hk_hot_rank()
+    collect_xueqiu_hk_quote()
 
     print("\n--- Step 3: 批量抓个股新闻 ---")
     top_stocks = get_top_hot_stocks(20)

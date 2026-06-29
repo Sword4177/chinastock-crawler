@@ -7,14 +7,15 @@ A_WATCH_LIST = [
 ]
 
 HK_WATCH_LIST = [
-    "HK00700",  # 腾讯
-    "HK09988",  # 阿里巴巴
-    "HK03690",  # 美团
-    "HK01024",  # 快手
-    "HK02318",  # 中国平安
+    "00700",   # 腾讯
+    "09988",   # 阿里巴巴
+    "03690",   # 美团
+    "01810",   # 小米
+    "02318",   # 中国平安
 ]
 
 DB_PATH = "chinastocks.db"
 
 import os
 ALPHA_VANTAGE_KEY = os.environ.get("ALPHA_VANTAGE_KEY", "")
+XUEQIU_TOKEN = os.environ.get("XUEQIU_TOKEN", "")

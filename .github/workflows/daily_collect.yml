@@ -37,6 +37,7 @@ jobs:
         run: python pipeline.py
         env:
           ALPHA_VANTAGE_KEY: ${{ secrets.ALPHA_VANTAGE_KEY }}
+          XUEQIU_TOKEN: ${{ secrets.XUEQIU_TOKEN }}
 
       - name: Save database for next run
         uses: actions/cache/save@v4

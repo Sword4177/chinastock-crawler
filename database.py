@@ -42,6 +42,20 @@ def init_db():
             collected_at TEXT NOT NULL,
             UNIQUE(market, trade_date)
         );
+
+        CREATE TABLE IF NOT EXISTS hk_quote (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            stock_code    TEXT NOT NULL,
+            current       REAL,
+            percent       REAL,
+            volume        INTEGER,
+            market_capital REAL,
+            high          REAL,
+            low           REAL,
+            open          REAL,
+            collected_at  TEXT NOT NULL,
+            UNIQUE(stock_code, collected_at)
+        );
     """)
     conn.commit()
     conn.close()
