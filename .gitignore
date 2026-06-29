@@ -1,1 +1,4 @@
-# 不忽略 CSV 样本数据
+__pycache__/
+*.pyc
+chinastocks.db
+*.csv
