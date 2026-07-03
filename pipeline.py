@@ -22,6 +22,7 @@ from collect_a_sentiment import (
 )
 from collect_hk_sentiment import collect_southbound_flow, collect_hk_hot_rank, collect_xueqiu_hk_quote
 from collect_global_sentiment import collect_av_news
+from crawl_guba import run as crawl_guba, init_guba_table
 
 BULLISH_WORDS = ["涨", "突破", "利好", "增长", "超预期", "买入", "新高", "强势", "上涨", "盈利"]
 BEARISH_WORDS = ["跌", "暴跌", "利空", "亏损", "低迷", "卖出", "新低", "弱势", "下跌", "亏损"]
@@ -75,6 +76,7 @@ def get_top_hot_stocks(n: int = 20) -> list[str]:
 
 def run():
     init_db()
+    init_guba_table()
     start = datetime.now()
     stats = {}
     print(f"\n=== Pipeline 开始 {start.strftime('%Y-%m-%d %H:%M')} ===")
@@ -96,6 +98,9 @@ def run():
     for code in top_stocks:
         collect_stock_news(code)
 
+    print("\n--- Step 3.5: 股吧帖子 ---")
+    crawl_guba(stock_codes=top_stocks)
+
     print("\n--- Step 4: 财新新闻 + 互动易问答 + 全球宏观 ---")
     collect_telegraph()
     collect_investor_qa()
@@ -110,12 +115,14 @@ def run():
     hot_count  = conn.execute("SELECT COUNT(*) FROM hot_rank WHERE collected_at LIKE ?", (f"{today}%",)).fetchone()[0]
     news_count = conn.execute("SELECT COUNT(*) FROM news WHERE collected_at LIKE ?", (f"{today}%",)).fetchone()[0]
     hk_count   = conn.execute("SELECT COUNT(*) FROM hk_quote WHERE collected_at LIKE ?", (f"{today}%",)).fetchone()[0]
+    guba_count = conn.execute("SELECT COUNT(*) FROM guba_posts WHERE collected_at LIKE ?", (f"{today}%",)).fetchone()[0]
     conn.close()
 
     elapsed = int((datetime.now() - start).total_seconds())
     msg = (
         f"✅ 数据采集完成 {today}\n"
         f"- 热股榜条目: {hot_count} 条\n"
+        f"- 股吧帖子: {guba_count} 条\n"
         f"- 新闻/问答: {news_count} 条\n"
         f"- 港股行情: {hk_count} 支\n"
         f"- 耗时: {elapsed}秒"
