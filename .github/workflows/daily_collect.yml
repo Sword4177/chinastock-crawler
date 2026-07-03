@@ -38,6 +38,7 @@ jobs:
         env:
           ALPHA_VANTAGE_KEY: ${{ secrets.ALPHA_VANTAGE_KEY }}
           XUEQIU_TOKEN: ${{ secrets.XUEQIU_TOKEN }}
+          LARK_WEBHOOK: ${{ secrets.LARK_WEBHOOK }}
 
       - name: Save database for next run
         uses: actions/cache/save@v4

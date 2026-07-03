@@ -2,8 +2,20 @@
 每日 pipeline：热股榜 → 批量个股新闻 → 情感打分 → 入库
 """
 import akshare as ak
+import os, requests
 from datetime import datetime
 from database import get_conn, init_db
+
+LARK_WEBHOOK = os.environ.get("LARK_WEBHOOK", "")
+
+
+def notify_lark(msg: str):
+    if not LARK_WEBHOOK:
+        return
+    try:
+        requests.post(LARK_WEBHOOK, json={"msg_type": "text", "content": {"text": msg}}, timeout=10)
+    except Exception:
+        pass
 from collect_a_sentiment import (
     collect_hot_rank, collect_hot_up_rank, collect_stock_news, collect_telegraph,
     collect_xueqiu_hot, collect_xueqiu_follow, collect_investor_qa,
@@ -63,7 +75,9 @@ def get_top_hot_stocks(n: int = 20) -> list[str]:
 
 def run():
     init_db()
-    print(f"\n=== Pipeline 开始 {datetime.now().strftime('%Y-%m-%d %H:%M')} ===")
+    start = datetime.now()
+    stats = {}
+    print(f"\n=== Pipeline 开始 {start.strftime('%Y-%m-%d %H:%M')} ===")
 
     print("\n--- Step 1: A股热股榜 ---")
     collect_hot_rank()
@@ -90,7 +104,24 @@ def run():
     print("\n--- Step 5: 情感打分 ---")
     update_news_sentiment()
 
-    print("\n=== Pipeline 完成 ===")
+    # 查数据库统计
+    conn = get_conn()
+    today = start.strftime("%Y-%m-%d")
+    hot_count  = conn.execute("SELECT COUNT(*) FROM hot_rank WHERE collected_at LIKE ?", (f"{today}%",)).fetchone()[0]
+    news_count = conn.execute("SELECT COUNT(*) FROM news WHERE collected_at LIKE ?", (f"{today}%",)).fetchone()[0]
+    hk_count   = conn.execute("SELECT COUNT(*) FROM hk_quote WHERE collected_at LIKE ?", (f"{today}%",)).fetchone()[0]
+    conn.close()
+
+    elapsed = int((datetime.now() - start).total_seconds())
+    msg = (
+        f"✅ 数据采集完成 {today}\n"
+        f"- 热股榜条目: {hot_count} 条\n"
+        f"- 新闻/问答: {news_count} 条\n"
+        f"- 港股行情: {hk_count} 支\n"
+        f"- 耗时: {elapsed}秒"
+    )
+    print(f"\n=== Pipeline 完成 ===\n{msg}")
+    notify_lark(msg)
 
 
 if __name__ == "__main__":
