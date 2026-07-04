@@ -2,8 +2,11 @@ name: Daily Stock Sentiment Collection
 
 on:
   schedule:
-    - cron: "0 2 * * 1-5"  # UTC 02:00 = 北京时间 10:00，周一到周五
-  workflow_dispatch:         # 支持手动触发
+    - cron: "0 1 * * 1-5"   # UTC 01:00 = 北京时间 09:00，开盘前
+    - cron: "30 3 * * 1-5"  # UTC 03:30 = 北京时间 11:30，上午收盘前
+    - cron: "30 5 * * 1-5"  # UTC 05:30 = 北京时间 13:30，下午开盘
+    - cron: "30 7 * * 1-5"  # UTC 07:30 = 北京时间 15:30，收盘后
+  workflow_dispatch:          # 支持手动触发
 
 jobs:
   collect:

@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 chinastocks.db
 *.csv
+scheduler.log

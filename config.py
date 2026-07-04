@@ -16,6 +16,10 @@ HK_WATCH_LIST = [
 
 DB_PATH = "chinastocks.db"
 
+# 每天采集4次，间隔6小时
+COLLECT_INTERVAL_SEC = 6 * 60 * 60
+
 import os
 ALPHA_VANTAGE_KEY = os.environ.get("ALPHA_VANTAGE_KEY", "")
 XUEQIU_TOKEN = os.environ.get("XUEQIU_TOKEN", "")
+LARK_WEBHOOK = os.environ.get("LARK_WEBHOOK", "")
