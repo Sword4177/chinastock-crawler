@@ -5,13 +5,22 @@ A 股 + 港股多源舆情数据自动采集、入库、API 对外输出。
 
 ---
 
-## 快速开始
+## 本地启动
 
 ```bash
 git clone https://github.com/Sword4177/chinastock-crawler.git
 cd chinastock-crawler
 pip install -r requirements.txt
-python pipeline.py          # 跑一次完整采集
+
+# 1. 跑一次完整采集（写入 chinastocks.db）
+python pipeline.py
+
+# 2. 持续定时采集（每6小时，后台运行）
+python scheduler.py
+
+# 3. 启动 API 服务
+uvicorn api:app --reload --port 8002
+# 文档: http://localhost:8002/docs
 ```
 
 ---
@@ -32,15 +41,16 @@ GitHub Actions 在仓库 Settings → Secrets 中配置。
 ## 项目结构
 
 ```
-pipeline.py          # 完整采集入口（一次性/GitHub Actions 用）
-scheduler.py         # 持续运行调度器（本地/服务器用，每6小时一次）
-api.py               # FastAPI 对外接口
-database.py          # SQLite 初始化 & 连接
-config.py            # 全局配置（Watch List、DB路径、采集间隔）
-collect_a_sentiment.py   # A股：热股榜、雪球、财新、互动易
-collect_hk_sentiment.py  # 港股：南向资金、港股热榜、雪球港股行情
+pipeline.py               # 完整采集入口（一次性/GitHub Actions 用）
+scheduler.py              # 持续运行调度器（本地/服务器用，每6小时一次）
+api.py                    # FastAPI 对外接口
+database.py               # SQLite 初始化 & 连接
+config.py                 # 全局配置（Watch List、DB路径、采集间隔）
+collect_a_sentiment.py    # A股：热股榜、雪球、财新、互动易
+collect_hk_sentiment.py   # 港股：南向资金、港股热榜、雪球港股行情
 collect_global_sentiment.py  # 全球：Alpha Vantage 宏观新闻
-crawl_guba.py        # 东方财富股吧爬虫（帖子列表 + 正文 + 情感打分）
+crawl_guba.py             # 东方财富股吧爬虫（帖子列表 + 正文 + 情感打分）
+sample_data/              # 采集样例 CSV（各表真实数据片段，供参考）
 ```
 
 ---
@@ -58,19 +68,34 @@ python scheduler.py
 
 **GitHub Actions 自动调度**（无需手动运行）：每个工作日触发 4 次，时间对齐 A 股交易时段：
 
-| 触发时间（北京） | 场景 |
-|---|---|
-| 09:00 | 开盘前 |
-| 11:30 | 上午收盘前 |
-| 13:30 | 下午开盘 |
-| 15:30 | 收盘后 |
+```yaml
+# .github/workflows/daily_collect.yml
+on:
+  schedule:
+    - cron: "0 1 * * 1-5"   # 北京 09:00 开盘前
+    - cron: "30 3 * * 1-5"  # 北京 11:30 上午收盘前
+    - cron: "30 5 * * 1-5"  # 北京 13:30 下午开盘
+    - cron: "30 7 * * 1-5"  # 北京 15:30 收盘后
+  workflow_dispatch:          # 支持手动触发
+```
+
+| UTC cron | 北京时间 | 场景 |
+|---|---|---|
+| `0 1 * * 1-5` | 09:00 | 开盘前 |
+| `30 3 * * 1-5` | 11:30 | 上午收盘前 |
+| `30 5 * * 1-5` | 13:30 | 下午开盘 |
+| `30 7 * * 1-5` | 15:30 | 收盘后 |
 
 ---
 
 ## API 服务（api.py）
 
 ```bash
+# 开发模式（热重载）
 uvicorn api:app --reload --port 8002
+
+# 生产模式
+uvicorn api:app --host 0.0.0.0 --port 8002
 ```
 
 交互式文档：http://localhost:8002/docs
