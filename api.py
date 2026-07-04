@@ -4,6 +4,8 @@ api.py — ChinaStocks 舆情 FastAPI 接口
 
 运行：uvicorn api:app --reload --port 8002
 """
+import logging
+import traceback
 from datetime import datetime
 from typing import Optional
 
@@ -11,6 +13,9 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import get_conn, init_db
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 app = FastAPI(
     title="ChinaStocks Sentiment API",
@@ -27,10 +32,14 @@ app.add_middleware(
 
 
 def query(sql: str, params: tuple = ()) -> list[dict]:
-    conn = get_conn()
-    rows = conn.execute(sql, params).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+    try:
+        conn = get_conn()
+        rows = conn.execute(sql, params).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+    except Exception as e:
+        logger.error("DB query failed: %s\nSQL: %s\nParams: %s\n%s", e, sql, params, traceback.format_exc())
+        raise HTTPException(status_code=500, detail="数据库查询失败，请稍后重试")
 
 
 @app.on_event("startup")
@@ -59,6 +68,7 @@ def hot_rank(
     """热股排行：按今日热度排名返回股票列表，支持多数据源切换。"""
     if date is None:
         date = datetime.now().strftime("%Y-%m-%d")
+    logger.info("GET /api/hot source=%s date=%s limit=%d", source, date, limit)
 
     rows = query(
         """
@@ -93,6 +103,7 @@ def stock_sentiment(
     单股情绪快照：综合新闻和股吧帖子，返回情感分、多空比例、热帖 Top 3。
     sentiment > 0 偏多，< 0 偏空，= 0 中性。
     """
+    logger.info("GET /api/sentiment/%s days=%d", stock_code, days)
     since = f"datetime('now', '-{days} days')"
 
     news_stat = query(
