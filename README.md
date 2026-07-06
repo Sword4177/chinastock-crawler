@@ -226,6 +226,31 @@ GET /api/sentiment/600519?days=30
 
 ---
 
+## Railway 部署
+
+1. 在 Railway 新建项目，连接 GitHub 仓库
+2. 添加以下环境变量：
+
+| 变量名 | 说明 |
+|---|---|
+| `API_KEY` | 接口鉴权密钥（调用方需在 Header 带 `X-API-Key`） |
+| `ALPHA_VANTAGE_KEY` | Alpha Vantage API Key |
+| `XUEQIU_TOKEN` | 雪球 JWT Token |
+| `LARK_WEBHOOK` | 飞书 Bot Webhook URL |
+
+3. Railway 会自动读取 `Procfile`，启动 `uvicorn api:app --host 0.0.0.0 --port $PORT`
+
+**API 调用示例（带认证）：**
+
+```bash
+curl -H "X-API-Key: your_key" https://your-app.railway.app/api/hot
+curl -H "X-API-Key: your_key" https://your-app.railway.app/api/sentiment/600519
+```
+
+> 本地开发不设置 `API_KEY` 时，接口自动开放，无需鉴权。
+
+---
+
 ## 数据库表
 
 | 表名 | 说明 |

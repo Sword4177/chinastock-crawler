@@ -23,3 +23,4 @@ import os
 ALPHA_VANTAGE_KEY = os.environ.get("ALPHA_VANTAGE_KEY", "")
 XUEQIU_TOKEN = os.environ.get("XUEQIU_TOKEN", "")
 LARK_WEBHOOK = os.environ.get("LARK_WEBHOOK", "")
+API_KEY = os.environ.get("API_KEY", "")  # 空字符串=本地开发开放访问

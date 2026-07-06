@@ -5,13 +5,16 @@ api.py — ChinaStocks 舆情 FastAPI 接口
 运行：uvicorn api:app --reload --port 8002
 """
 import logging
+import time
 import traceback
+from collections import defaultdict
 from datetime import datetime
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 
+from config import API_KEY
 from database import get_conn, init_db
 
 logger = logging.getLogger(__name__)
@@ -29,6 +32,33 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Rate limiting（60 次/分钟/IP）─────────────────────────────────────────────
+_rate_store: dict[str, list[float]] = defaultdict(list)
+RATE_LIMIT = 60
+RATE_WINDOW = 60.0
+
+
+def check_rate_limit(request: Request):
+    ip = request.client.host
+    now = time.time()
+    hits = [t for t in _rate_store[ip] if now - t < RATE_WINDOW]
+    if len(hits) >= RATE_LIMIT:
+        raise HTTPException(status_code=429, detail="Rate limit exceeded: 60 req/min")
+    hits.append(now)
+    _rate_store[ip] = hits
+
+
+# ── API Key 认证 ───────────────────────────────────────────────────────────────
+def require_api_key(request: Request):
+    if not API_KEY:
+        return  # 未配置 KEY 时开放访问（本地开发）
+    key = request.headers.get("X-API-Key") or request.query_params.get("api_key")
+    if key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing X-API-Key")
+
+
+DEPS = [Depends(check_rate_limit), Depends(require_api_key)]
 
 
 def query(sql: str, params: tuple = ()) -> list[dict]:
@@ -56,7 +86,7 @@ def root():
 
 # ── 热股排行 ───────────────────────────────────────────────────────────────────
 
-@app.get("/api/hot", tags=["舆情"])
+@app.get("/api/hot", tags=["舆情"], dependencies=DEPS)
 def hot_rank(
     source: str = Query(
         "eastmoney_hot",
@@ -94,7 +124,7 @@ def hot_rank(
 
 # ── 单股情绪快照 ────────────────────────────────────────────────────────────────
 
-@app.get("/api/sentiment/{stock_code}", tags=["舆情"])
+@app.get("/api/sentiment/{stock_code}", tags=["舆情"], dependencies=DEPS)
 def stock_sentiment(
     stock_code: str,
     days: int = Query(7, ge=1, le=30, description="统计最近 N 天"),
