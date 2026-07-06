@@ -125,7 +125,13 @@ def save_posts(posts: list[dict]):
             "SELECT id FROM guba_posts WHERE post_id = ?", (p["post_id"],)
         ).fetchone()
         if exists:
-            # 只更新 content 和 sentiment（如果这次抓到了正文）
+            # 每次都更新热度数据和采集时间，有正文时一并更新
+            conn.execute(
+                """UPDATE guba_posts
+                   SET read_count=?, reply_count=?, collected_at=?
+                   WHERE post_id=?""",
+                (p["read_count"], p["reply_count"], p["collected_at"], p["post_id"]),
+            )
             if p.get("content"):
                 conn.execute(
                     "UPDATE guba_posts SET content=?, sentiment=? WHERE post_id=?",
