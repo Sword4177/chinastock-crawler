@@ -9,14 +9,15 @@ from database import get_conn
 # ── hot_rank ───────────────────────────────────────────────────────────────────
 
 def insert_hot_rank(rows: list[tuple]) -> int:
-    """批量写入热股排行（同源同股同天重复则忽略）。rows: [(source, rank, stock_code, stock_name, score, collected_at)]"""
+    """批量写入热股排行（每日快照口径，同源同股同天重复则忽略）。rows: [(source, rank, stock_code, stock_name, score, collected_at)]"""
     conn = get_conn()
+    before = conn.total_changes
     conn.executemany(
         "INSERT OR IGNORE INTO hot_rank (source, rank, stock_code, stock_name, score, collected_at) VALUES (?,?,?,?,?,?)",
         rows,
     )
     conn.commit()
-    n = conn.execute("SELECT changes()").fetchone()[0]
+    n = conn.total_changes - before
     conn.close()
     return n
 
@@ -41,12 +42,13 @@ def get_top_hot_stocks(n: int = 20, date: str = None) -> list[str]:
 def insert_news(rows: list[tuple]) -> int:
     """批量写入新闻（同源同标题同发布时间重复则忽略）。rows: [(source, stock_code, title, content, sentiment, published_at, collected_at)]"""
     conn = get_conn()
+    before = conn.total_changes
     conn.executemany(
         "INSERT OR IGNORE INTO news (source, stock_code, title, content, sentiment, published_at, collected_at) VALUES (?,?,?,?,?,?,?)",
         rows,
     )
     conn.commit()
-    n = conn.execute("SELECT changes()").fetchone()[0]
+    n = conn.total_changes - before
     conn.close()
     return n
 
@@ -71,15 +73,17 @@ def update_news_sentiment(news_id: int, score: float) -> None:
 # ── capital_flow ───────────────────────────────────────────────────────────────
 
 def insert_capital_flow(rows: list[tuple]) -> int:
-    """批量写入资金流向（IGNORE 重复）。rows: [(market, trade_date, net_inflow, buy_amount, sell_amount, collected_at)]"""
+    """批量写入资金流向（UNIQUE(market, trade_date) 约束已在 001_init.sql，重复则忽略）。rows: [(market, trade_date, net_inflow, buy_amount, sell_amount, collected_at)]"""
     conn = get_conn()
+    before = conn.total_changes
     conn.executemany(
         "INSERT OR IGNORE INTO capital_flow (market, trade_date, net_inflow, buy_amount, sell_amount, collected_at) VALUES (?,?,?,?,?,?)",
         rows,
     )
     conn.commit()
+    n = conn.total_changes - before
     conn.close()
-    return len(rows)
+    return n
 
 
 # ── hk_quote ──────────────────────────────────────────────────────────────────

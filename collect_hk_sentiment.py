@@ -11,7 +11,7 @@ from repository import insert_hot_rank, insert_capital_flow, upsert_hk_quote
 NOW = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
-def collect_southbound_flow():
+def collect_southbound_flow() -> int:
     """南向资金流向"""
     try:
         df = ak.stock_hsgt_fund_flow_summary_em()
@@ -21,11 +21,13 @@ def collect_southbound_flow():
                 for _, row in df.iterrows()]
         n = insert_capital_flow(rows)
         print(f"[南向资金] {n} 条")
+        return n
     except Exception as e:
         print(f"[南向资金] 失败: {e}")
+        return 0
 
 
-def collect_hk_hot_rank():
+def collect_hk_hot_rank() -> int:
     """东财港股人气榜"""
     try:
         df = ak.stock_hk_hot_rank_em()
@@ -34,15 +36,17 @@ def collect_hk_hot_rank():
                 for _, row in df.iterrows()]
         n = insert_hot_rank(rows)
         print(f"[东财港股人气榜] {n} 条")
+        return n
     except Exception as e:
         print(f"[东财港股人气榜] 失败: {e}")
+        return 0
 
 
-def collect_xueqiu_hk_quote():
+def collect_xueqiu_hk_quote() -> int:
     """雪球港股实时行情"""
     if not XUEQIU_TOKEN:
         print("[雪球港股行情] 未设置 XUEQIU_TOKEN，跳过")
-        return
+        return 0
     try:
         url = "https://stock.xueqiu.com/v5/stock/realtime/quotec.json"
         headers = {"User-Agent": "Mozilla/5.0", "Referer": "https://xueqiu.com"}
@@ -56,8 +60,10 @@ def collect_xueqiu_hk_quote():
             upsert_hk_quote(code, data[0], NOW)
             total += 1
         print(f"[雪球港股行情] {total} 支")
+        return total
     except Exception as e:
         print(f"[雪球港股行情] 失败: {e}")
+        return 0
 
 
 if __name__ == "__main__":

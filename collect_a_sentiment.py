@@ -9,7 +9,7 @@ from repository import insert_hot_rank, insert_news
 NOW = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
-def collect_hot_rank():
+def collect_hot_rank() -> int:
     """东财人气榜"""
     try:
         df = ak.stock_hot_rank_em()
@@ -19,11 +19,13 @@ def collect_hot_rank():
                 for _, row in df.iterrows()]
         n = insert_hot_rank(rows)
         print(f"[东财人气榜] {n} 条")
+        return n
     except Exception as e:
         print(f"[东财人气榜] 失败: {e}")
+        return 0
 
 
-def collect_hot_up_rank():
+def collect_hot_up_rank() -> int:
     """东财飙升榜"""
     try:
         df = ak.stock_hot_up_em()
@@ -33,11 +35,13 @@ def collect_hot_up_rank():
                 for _, row in df.iterrows()]
         n = insert_hot_rank(rows)
         print(f"[东财飙升榜] {n} 条")
+        return n
     except Exception as e:
         print(f"[东财飙升榜] 失败: {e}")
+        return 0
 
 
-def collect_telegraph():
+def collect_telegraph() -> int:
     """财新新闻"""
     try:
         df = ak.stock_news_main_cx()
@@ -49,11 +53,13 @@ def collect_telegraph():
                 for _, row in df.iterrows()]
         n = insert_news(rows)
         print(f"[财新新闻] {n} 条")
+        return n
     except Exception as e:
         print(f"[财新新闻] 失败: {e}")
+        return 0
 
 
-def collect_stock_news(stock_code: str):
+def collect_stock_news(stock_code: str) -> int:
     """个股新闻（东财）"""
     try:
         df = ak.stock_news_em(symbol=stock_code)
@@ -62,11 +68,13 @@ def collect_stock_news(stock_code: str):
                 for _, row in df.iterrows()]
         n = insert_news(rows)
         print(f"[个股新闻 {stock_code}] {n} 条")
+        return n
     except Exception as e:
         print(f"[个股新闻 {stock_code}] 失败: {e}")
+        return 0
 
 
-def collect_xueqiu_hot():
+def collect_xueqiu_hot() -> int:
     """雪球热帖榜"""
     try:
         df = ak.stock_hot_tweet_xq()
@@ -76,11 +84,13 @@ def collect_xueqiu_hot():
                 for i, (_, row) in enumerate(df.iterrows())]
         n = insert_hot_rank(rows)
         print(f"[雪球热帖榜] {n} 条")
+        return n
     except Exception as e:
         print(f"[雪球热帖榜] 失败: {e}")
+        return 0
 
 
-def collect_xueqiu_follow():
+def collect_xueqiu_follow() -> int:
     """雪球关注榜"""
     try:
         df = ak.stock_hot_follow_xq()
@@ -90,11 +100,13 @@ def collect_xueqiu_follow():
                 for i, (_, row) in enumerate(df.iterrows())]
         n = insert_hot_rank(rows)
         print(f"[雪球关注榜] {n} 条")
+        return n
     except Exception as e:
         print(f"[雪球关注榜] 失败: {e}")
+        return 0
 
 
-def collect_investor_qa():
+def collect_investor_qa() -> int:
     """互动易问答"""
     try:
         df = ak.stock_irm_cninfo()
@@ -106,8 +118,10 @@ def collect_investor_qa():
                 for _, row in df.iterrows()]
         n = insert_news(rows)
         print(f"[互动易问答] {n} 条")
+        return n
     except Exception as e:
         print(f"[互动易问答] 失败: {e}")
+        return 0
 
 
 if __name__ == "__main__":

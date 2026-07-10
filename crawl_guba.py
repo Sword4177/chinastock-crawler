@@ -102,7 +102,7 @@ def save_posts(posts: list[dict]):
 
 
 
-def run(stock_codes: list[str] = None):
+def run(stock_codes: list[str] = None) -> int:
     init_db()
     init_guba_table()
 
@@ -111,7 +111,7 @@ def run(stock_codes: list[str] = None):
 
     if not stock_codes:
         print("[股吧] 热股榜为空，先跑一次 pipeline 再来")
-        return
+        return 0
 
     total = 0
     print(f"[股吧] 开始抓取 {len(stock_codes)} 支股票")
@@ -125,6 +125,7 @@ def run(stock_codes: list[str] = None):
         time.sleep(0.3)
 
     print(f"[股吧] 共入库 {total} 条")
+    return total
 
 
 if __name__ == "__main__":

@@ -21,11 +21,11 @@ def _parse_time(ts: str) -> str:
         return ts
 
 
-def collect_av_news():
+def collect_av_news() -> int:
     """拉取 Alpha Vantage 宏观新闻情感（已含 ML 情感分，直接入库）"""
     if not ALPHA_VANTAGE_KEY:
         print("[Alpha Vantage] 未设置 ALPHA_VANTAGE_KEY，跳过")
-        return
+        return 0
 
     total = 0
     for topic in TOPICS:
@@ -51,6 +51,7 @@ def collect_av_news():
             print(f"[Alpha Vantage {topic}] 失败: {e}")
 
     print(f"[Alpha Vantage] 共 {total} 条入库")
+    return total
 
 
 if __name__ == "__main__":

@@ -4,7 +4,8 @@ DELETE FROM hot_rank WHERE id NOT IN (
     GROUP BY source, COALESCE(stock_code, ''), date(collected_at)
 );
 
--- hot_rank 去重：同一数据源同一股票同一天只保留一条
+-- hot_rank 去重：每日快照口径，同一数据源同一股票同一天只保留第一条。
+-- 如需盘中时序数据（如4次/天），应改用 batch_id 替换 date(collected_at)。
 CREATE UNIQUE INDEX IF NOT EXISTS idx_hot_rank_dedup
     ON hot_rank (source, COALESCE(stock_code, ''), date(collected_at));
 
@@ -17,6 +18,9 @@ DELETE FROM news WHERE id NOT IN (
 -- news 去重：同一来源同一标题同一发布时间只入库一次
 CREATE UNIQUE INDEX IF NOT EXISTS idx_news_dedup
     ON news (source, COALESCE(title, ''), COALESCE(published_at, ''));
+
+-- capital_flow 的 UNIQUE(market, trade_date) 约束已在 001_init.sql 建表时定义，无需重复。
+-- insert_capital_flow() 的 INSERT OR IGNORE 依赖此约束正常工作。
 
 -- 股票主数据表
 CREATE TABLE IF NOT EXISTS stocks (
