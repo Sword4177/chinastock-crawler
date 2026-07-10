@@ -4,3 +4,4 @@ chinastocks.db
 *.csv
 !sample_data/*.csv
 scheduler.log
+exports/

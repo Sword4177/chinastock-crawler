@@ -1,12 +1,26 @@
 """
 每日 pipeline：热股榜 → 批量个股新闻 → 情感打分 → 入库
 """
-import akshare as ak
-import os, requests
+import os
+import requests
 from datetime import datetime
-from database import get_conn, init_db
+from database import init_db
+from repository import (
+    get_top_hot_stocks, get_daily_stats,
+    get_unscored_news, update_news_sentiment,
+)
+from collect_a_sentiment import (
+    collect_hot_rank, collect_hot_up_rank, collect_stock_news, collect_telegraph,
+    collect_xueqiu_hot, collect_xueqiu_follow, collect_investor_qa,
+)
+from collect_hk_sentiment import collect_southbound_flow, collect_hk_hot_rank, collect_xueqiu_hk_quote
+from collect_global_sentiment import collect_av_news
+from crawl_guba import run as crawl_guba, init_guba_table
 
 LARK_WEBHOOK = os.environ.get("LARK_WEBHOOK", "")
+
+BULLISH_WORDS = ["涨", "突破", "利好", "增长", "超预期", "买入", "新高", "强势", "上涨", "盈利"]
+BEARISH_WORDS = ["跌", "暴跌", "利空", "亏损", "低迷", "卖出", "新低", "弱势", "下跌", "亏损"]
 
 
 def notify_lark(msg: str):
@@ -16,69 +30,30 @@ def notify_lark(msg: str):
         requests.post(LARK_WEBHOOK, json={"msg_type": "text", "content": {"text": msg}}, timeout=10)
     except Exception:
         pass
-from collect_a_sentiment import (
-    collect_hot_rank, collect_hot_up_rank, collect_stock_news, collect_telegraph,
-    collect_xueqiu_hot, collect_xueqiu_follow, collect_investor_qa,
-)
-from collect_hk_sentiment import collect_southbound_flow, collect_hk_hot_rank, collect_xueqiu_hk_quote
-from collect_global_sentiment import collect_av_news
-from crawl_guba import run as crawl_guba, init_guba_table
-
-BULLISH_WORDS = ["涨", "突破", "利好", "增长", "超预期", "买入", "新高", "强势", "上涨", "盈利"]
-BEARISH_WORDS = ["跌", "暴跌", "利空", "亏损", "低迷", "卖出", "新低", "弱势", "下跌", "亏损"]
 
 
-def score_sentiment(text: str) -> float:
-    """基于关键词的简单情感打分，返回 -1.0 到 1.0"""
+def _score(text: str) -> float:
     if not text:
         return 0.0
     bull = sum(1 for w in BULLISH_WORDS if w in text)
     bear = sum(1 for w in BEARISH_WORDS if w in text)
     total = bull + bear
-    if total == 0:
-        return 0.0
-    return round((bull - bear) / total, 3)
+    return round((bull - bear) / total, 3) if total else 0.0
 
 
-def update_news_sentiment():
-    """对 news 表中未打分的条目计算情感分"""
-    conn = get_conn()
-    rows = conn.execute(
-        "SELECT id, title, content FROM news WHERE sentiment IS NULL"
-    ).fetchall()
-    updated = 0
+def run_news_sentiment():
+    """对 news 表中未打分的条目计算情感分。"""
+    rows = get_unscored_news()
     for row in rows:
         text = (row["title"] or "") + " " + (row["content"] or "")
-        score = score_sentiment(text)
-        conn.execute("UPDATE news SET sentiment = ? WHERE id = ?", (score, row["id"]))
-        updated += 1
-    conn.commit()
-    conn.close()
-    print(f"[情感打分] {updated} 条更新")
-
-
-def get_top_hot_stocks(n: int = 20) -> list[str]:
-    """从 hot_rank 表取当日最热的 N 支股票（去重）"""
-    conn = get_conn()
-    today = datetime.now().strftime("%Y-%m-%d")
-    rows = conn.execute(
-        """
-        SELECT stock_code FROM hot_rank
-        WHERE source = 'eastmoney_hot' AND collected_at LIKE ?
-        GROUP BY stock_code
-        ORDER BY MIN(rank) ASC LIMIT ?
-        """,
-        (f"{today}%", n),
-    ).fetchall()
-    conn.close()
-    return [r["stock_code"] for r in rows if r["stock_code"]]
+        update_news_sentiment(row["id"], _score(text))
+    print(f"[情感打分] {len(rows)} 条更新")
 
 
 def run():
     init_db()
     init_guba_table()
     start = datetime.now()
-    stats = {}
     print(f"\n=== Pipeline 开始 {start.strftime('%Y-%m-%d %H:%M')} ===")
 
     print("\n--- Step 1: A股热股榜 ---")
@@ -107,24 +82,18 @@ def run():
     collect_av_news()
 
     print("\n--- Step 5: 情感打分 ---")
-    update_news_sentiment()
+    run_news_sentiment()
 
-    # 查数据库统计
-    conn = get_conn()
     today = start.strftime("%Y-%m-%d")
-    hot_count  = conn.execute("SELECT COUNT(*) FROM hot_rank WHERE collected_at LIKE ?", (f"{today}%",)).fetchone()[0]
-    news_count = conn.execute("SELECT COUNT(*) FROM news WHERE collected_at LIKE ?", (f"{today}%",)).fetchone()[0]
-    hk_count   = conn.execute("SELECT COUNT(*) FROM hk_quote WHERE collected_at LIKE ?", (f"{today}%",)).fetchone()[0]
-    guba_count = conn.execute("SELECT COUNT(*) FROM guba_posts WHERE collected_at LIKE ?", (f"{today}%",)).fetchone()[0]
-    conn.close()
-
+    stats = get_daily_stats(today)
     elapsed = int((datetime.now() - start).total_seconds())
+
     msg = (
         f"✅ 数据采集完成 {today}\n"
-        f"- 热股榜条目: {hot_count} 条\n"
-        f"- 股吧帖子: {guba_count} 条\n"
-        f"- 新闻/问答: {news_count} 条\n"
-        f"- 港股行情: {hk_count} 支\n"
+        f"- 热股榜条目: {stats['hot_count']} 条\n"
+        f"- 股吧帖子: {stats['guba_count']} 条\n"
+        f"- 新闻/问答: {stats['news_count']} 条\n"
+        f"- 港股行情: {stats['hk_count']} 支\n"
         f"- 耗时: {elapsed}秒"
     )
     print(f"\n=== Pipeline 完成 ===\n{msg}")

@@ -5,11 +5,11 @@
 import requests
 from datetime import datetime
 from config import ALPHA_VANTAGE_KEY
-from database import get_conn, init_db
+from database import init_db
+from repository import insert_news
 
 NOW = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 AV_URL = "https://www.alphavantage.co/query"
-
 TOPICS = ["economy_fiscal", "economy_macro"]
 
 
@@ -27,7 +27,6 @@ def collect_av_news():
         print("[Alpha Vantage] 未设置 ALPHA_VANTAGE_KEY，跳过")
         return
 
-    conn = get_conn()
     total = 0
     for topic in TOPICS:
         try:
@@ -37,30 +36,20 @@ def collect_av_news():
                         "limit": 50, "apikey": ALPHA_VANTAGE_KEY},
                 timeout=20,
             )
-            data = r.json()
-            feed = data.get("feed", [])
-            rows = []
-            for item in feed:
-                rows.append((
-                    f"alpha_vantage_{topic}",
-                    None,
-                    item.get("title"),
-                    item.get("summary"),
-                    float(item.get("overall_sentiment_score", 0)),
-                    _parse_time(item.get("time_published", "")),
-                    NOW,
-                ))
-            conn.executemany(
-                "INSERT INTO news (source, stock_code, title, content, sentiment, published_at, collected_at) VALUES (?,?,?,?,?,?,?)",
-                rows,
-            )
-            conn.commit()
-            total += len(rows)
-            print(f"[Alpha Vantage {topic}] {len(rows)} 条")
+            feed = r.json().get("feed", [])
+            rows = [
+                (f"alpha_vantage_{topic}", None,
+                 item.get("title"), item.get("summary"),
+                 float(item.get("overall_sentiment_score", 0)),
+                 _parse_time(item.get("time_published", "")), NOW)
+                for item in feed
+            ]
+            n = insert_news(rows)
+            total += n
+            print(f"[Alpha Vantage {topic}] {n} 条")
         except Exception as e:
             print(f"[Alpha Vantage {topic}] 失败: {e}")
 
-    conn.close()
     print(f"[Alpha Vantage] 共 {total} 条入库")
 
 
