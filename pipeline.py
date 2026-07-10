@@ -5,6 +5,7 @@ import os
 import requests
 from datetime import datetime
 from database import init_db
+from exceptions import CollectorSkipped
 from repository import (
     get_top_hot_stocks, get_daily_stats,
     get_unscored_news, update_news_sentiment,
@@ -43,12 +44,19 @@ def _score(text: str) -> float:
 
 
 def _run_step(source: str, fn, *args, **kwargs):
-    """执行一个采集步骤，自动记录 source_runs。"""
+    """执行一个采集步骤，自动记录 source_runs。
+    - success: 正常完成，row_count 为实际新增行数（0 表示无新数据）
+    - skipped: 配置缺失主动跳过（如 token/key 未设置）
+    - failed:  发生异常，error 字段记录原因
+    """
     run_id = start_source_run(source)
     try:
         result = fn(*args, **kwargs)
         row_count = result if isinstance(result, int) else 0
         finish_source_run(run_id, "success", row_count)
+    except CollectorSkipped as e:
+        finish_source_run(run_id, "skipped", error=str(e))
+        print(f"[{source}] 跳过: {e}")
     except Exception as e:
         finish_source_run(run_id, "failed", error=str(e))
         print(f"[{source}] 失败: {e}")

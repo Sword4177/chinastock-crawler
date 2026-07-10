@@ -6,6 +6,7 @@ import requests
 from datetime import datetime
 from config import ALPHA_VANTAGE_KEY
 from database import init_db
+from exceptions import CollectorSkipped
 from repository import insert_news
 
 NOW = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -24,31 +25,27 @@ def _parse_time(ts: str) -> str:
 def collect_av_news() -> int:
     """拉取 Alpha Vantage 宏观新闻情感（已含 ML 情感分，直接入库）"""
     if not ALPHA_VANTAGE_KEY:
-        print("[Alpha Vantage] 未设置 ALPHA_VANTAGE_KEY，跳过")
-        return 0
+        raise CollectorSkipped("ALPHA_VANTAGE_KEY 未设置")
 
     total = 0
     for topic in TOPICS:
-        try:
-            r = requests.get(
-                AV_URL,
-                params={"function": "NEWS_SENTIMENT", "topics": topic,
-                        "limit": 50, "apikey": ALPHA_VANTAGE_KEY},
-                timeout=20,
-            )
-            feed = r.json().get("feed", [])
-            rows = [
-                (f"alpha_vantage_{topic}", None,
-                 item.get("title"), item.get("summary"),
-                 float(item.get("overall_sentiment_score", 0)),
-                 _parse_time(item.get("time_published", "")), NOW)
-                for item in feed
-            ]
-            n = insert_news(rows)
-            total += n
-            print(f"[Alpha Vantage {topic}] {n} 条")
-        except Exception as e:
-            print(f"[Alpha Vantage {topic}] 失败: {e}")
+        r = requests.get(
+            AV_URL,
+            params={"function": "NEWS_SENTIMENT", "topics": topic,
+                    "limit": 50, "apikey": ALPHA_VANTAGE_KEY},
+            timeout=20,
+        )
+        feed = r.json().get("feed", [])
+        rows = [
+            (f"alpha_vantage_{topic}", None,
+             item.get("title"), item.get("summary"),
+             float(item.get("overall_sentiment_score", 0)),
+             _parse_time(item.get("time_published", "")), NOW)
+            for item in feed
+        ]
+        n = insert_news(rows)
+        total += n
+        print(f"[Alpha Vantage {topic}] {n} 条")
 
     print(f"[Alpha Vantage] 共 {total} 条入库")
     return total
