@@ -263,6 +263,21 @@ curl -H "X-API-Key: your_key" https://your-app.railway.app/api/sentiment/600519
 
 ---
 
+## 开发流程
+
+所有改动通过 PR 提交，不直接推 main：
+
+```bash
+git checkout -b feat/your-feature-name   # 新建分支
+# ... 改代码，本地跑通 ...
+git add <files>
+git commit -m "feat: 描述做了什么"
+git push origin feat/your-feature-name
+gh pr create --title "..." --body "..."  # 开 PR，等 review 后合并
+```
+
+---
+
 ## 技术栈
 
 - Python 3.11+
