@@ -9,15 +9,16 @@ from database import get_conn
 # ── hot_rank ───────────────────────────────────────────────────────────────────
 
 def insert_hot_rank(rows: list[tuple]) -> int:
-    """批量写入热股排行。rows: [(source, rank, stock_code, stock_name, score, collected_at)]"""
+    """批量写入热股排行（同源同股同天重复则忽略）。rows: [(source, rank, stock_code, stock_name, score, collected_at)]"""
     conn = get_conn()
     conn.executemany(
-        "INSERT INTO hot_rank (source, rank, stock_code, stock_name, score, collected_at) VALUES (?,?,?,?,?,?)",
+        "INSERT OR IGNORE INTO hot_rank (source, rank, stock_code, stock_name, score, collected_at) VALUES (?,?,?,?,?,?)",
         rows,
     )
     conn.commit()
+    n = conn.execute("SELECT changes()").fetchone()[0]
     conn.close()
-    return len(rows)
+    return n
 
 
 def get_top_hot_stocks(n: int = 20, date: str = None) -> list[str]:
@@ -38,15 +39,16 @@ def get_top_hot_stocks(n: int = 20, date: str = None) -> list[str]:
 # ── news ───────────────────────────────────────────────────────────────────────
 
 def insert_news(rows: list[tuple]) -> int:
-    """批量写入新闻。rows: [(source, stock_code, title, content, sentiment, published_at, collected_at)]"""
+    """批量写入新闻（同源同标题同发布时间重复则忽略）。rows: [(source, stock_code, title, content, sentiment, published_at, collected_at)]"""
     conn = get_conn()
     conn.executemany(
-        "INSERT INTO news (source, stock_code, title, content, sentiment, published_at, collected_at) VALUES (?,?,?,?,?,?,?)",
+        "INSERT OR IGNORE INTO news (source, stock_code, title, content, sentiment, published_at, collected_at) VALUES (?,?,?,?,?,?,?)",
         rows,
     )
     conn.commit()
+    n = conn.execute("SELECT changes()").fetchone()[0]
     conn.close()
-    return len(rows)
+    return n
 
 
 def get_unscored_news() -> list[dict]:
@@ -108,9 +110,10 @@ def upsert_guba_post(post: dict) -> None:
     if exists:
         conn.execute(
             """UPDATE guba_posts
-               SET read_count=?, reply_count=?, collected_at=?
+               SET read_count=?, reply_count=?, title=?, author=?, updated_at=?, collected_at=?
                WHERE post_id=?""",
-            (post["read_count"], post["reply_count"], post["collected_at"], post["post_id"]),
+            (post["read_count"], post["reply_count"], post["title"], post["author"],
+             post["updated_at"], post["collected_at"], post["post_id"]),
         )
         if post.get("content"):
             conn.execute(
@@ -124,6 +127,32 @@ def upsert_guba_post(post: dict) -> None:
                VALUES (:post_id, :stock_code, :title, :content, :author, :read_count, :reply_count, :sentiment, :updated_at, :collected_at)""",
             post,
         )
+    conn.commit()
+    conn.close()
+
+
+# ── source_runs ────────────────────────────────────────────────────────────────
+
+def start_source_run(source: str) -> int:
+    """记录采集任务开始，返回 run_id。"""
+    conn = get_conn()
+    cur = conn.execute(
+        "INSERT INTO source_runs (source, started_at) VALUES (?, ?)",
+        (source, datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+    )
+    run_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return run_id
+
+
+def finish_source_run(run_id: int, status: str, row_count: int = 0, error: str = None) -> None:
+    """记录采集任务结束。status: 'success' | 'failed'"""
+    conn = get_conn()
+    conn.execute(
+        "UPDATE source_runs SET finished_at=?, status=?, row_count=?, error=? WHERE id=?",
+        (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), status, row_count, error, run_id),
+    )
     conn.commit()
     conn.close()
 
