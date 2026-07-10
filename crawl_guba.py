@@ -6,7 +6,8 @@ import requests
 import time
 from bs4 import BeautifulSoup
 from datetime import datetime
-from database import get_conn, init_db
+from database import init_db
+from repository import upsert_guba_post, get_top_hot_stocks
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
@@ -28,30 +29,8 @@ def score(text: str) -> float:
 
 
 def init_guba_table():
-    conn = get_conn()
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS guba_posts (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            post_id     TEXT UNIQUE,
-            stock_code  TEXT NOT NULL,
-            title       TEXT,
-            content     TEXT,
-            author      TEXT,
-            read_count  INTEGER,
-            reply_count INTEGER,
-            sentiment   REAL,
-            updated_at  TEXT,
-            collected_at TEXT NOT NULL
-        )
-    """)
-    # 兼容旧表（没有 content/sentiment 列）
-    try:
-        conn.execute("ALTER TABLE guba_posts ADD COLUMN content TEXT")
-        conn.execute("ALTER TABLE guba_posts ADD COLUMN sentiment REAL")
-    except Exception:
-        pass
-    conn.commit()
-    conn.close()
+    """已由 migrations/002_guba_posts.sql 处理，保留此函数避免 pipeline.py 调用报错。"""
+    pass
 
 
 def fetch_post_content(post_id: str, stock_code: str) -> str:
@@ -117,48 +96,10 @@ def enrich_top_posts(posts: list[dict], top_n: int = 5):
 
 
 def save_posts(posts: list[dict]):
-    if not posts:
-        return
-    conn = get_conn()
     for p in posts:
-        exists = conn.execute(
-            "SELECT id FROM guba_posts WHERE post_id = ?", (p["post_id"],)
-        ).fetchone()
-        if exists:
-            # 每次都更新热度数据和采集时间，有正文时一并更新
-            conn.execute(
-                """UPDATE guba_posts
-                   SET read_count=?, reply_count=?, collected_at=?
-                   WHERE post_id=?""",
-                (p["read_count"], p["reply_count"], p["collected_at"], p["post_id"]),
-            )
-            if p.get("content"):
-                conn.execute(
-                    "UPDATE guba_posts SET content=?, sentiment=? WHERE post_id=?",
-                    (p["content"], p["sentiment"], p["post_id"]),
-                )
-        else:
-            conn.execute(
-                """INSERT INTO guba_posts
-                   (post_id, stock_code, title, content, author, read_count, reply_count, sentiment, updated_at, collected_at)
-                   VALUES (:post_id, :stock_code, :title, :content, :author, :read_count, :reply_count, :sentiment, :updated_at, :collected_at)""",
-                p,
-            )
-    conn.commit()
-    conn.close()
+        upsert_guba_post(p)
 
 
-def get_top_hot_stocks(n: int = 20) -> list[str]:
-    conn = get_conn()
-    today = datetime.now().strftime("%Y-%m-%d")
-    rows = conn.execute(
-        """SELECT stock_code FROM hot_rank
-           WHERE source = 'eastmoney_hot' AND collected_at LIKE ?
-           GROUP BY stock_code ORDER BY MIN(rank) ASC LIMIT ?""",
-        (f"{today}%", n),
-    ).fetchall()
-    conn.close()
-    return [r["stock_code"] for r in rows if r["stock_code"]]
 
 
 def run(stock_codes: list[str] = None):
