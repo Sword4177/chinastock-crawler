@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS source_runs (
     source      TEXT NOT NULL,
     started_at  TEXT NOT NULL,
     finished_at TEXT,
-    status      TEXT NOT NULL DEFAULT 'running',  -- running / success / failed
+    status      TEXT NOT NULL DEFAULT 'running',  -- running / success / failed / skipped
     row_count   INTEGER DEFAULT 0,
     error       TEXT
 );
