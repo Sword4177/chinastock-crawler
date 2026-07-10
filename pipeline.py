@@ -5,9 +5,11 @@ import os
 import requests
 from datetime import datetime
 from database import init_db
+from exceptions import CollectorSkipped
 from repository import (
     get_top_hot_stocks, get_daily_stats,
     get_unscored_news, update_news_sentiment,
+    start_source_run, finish_source_run,
 )
 from collect_a_sentiment import (
     collect_hot_rank, collect_hot_up_rank, collect_stock_news, collect_telegraph,
@@ -41,6 +43,25 @@ def _score(text: str) -> float:
     return round((bull - bear) / total, 3) if total else 0.0
 
 
+def _run_step(source: str, fn, *args, **kwargs):
+    """执行一个采集步骤，自动记录 source_runs。
+    - success: 正常完成，row_count 为实际新增行数（0 表示无新数据）
+    - skipped: 配置缺失主动跳过（如 token/key 未设置）
+    - failed:  发生异常，error 字段记录原因
+    """
+    run_id = start_source_run(source)
+    try:
+        result = fn(*args, **kwargs)
+        row_count = result if isinstance(result, int) else 0
+        finish_source_run(run_id, "success", row_count)
+    except CollectorSkipped as e:
+        finish_source_run(run_id, "skipped", error=str(e))
+        print(f"[{source}] 跳过: {e}")
+    except Exception as e:
+        finish_source_run(run_id, "failed", error=str(e))
+        print(f"[{source}] 失败: {e}")
+
+
 def run_news_sentiment():
     """对 news 表中未打分的条目计算情感分。"""
     rows = get_unscored_news()
@@ -57,29 +78,29 @@ def run():
     print(f"\n=== Pipeline 开始 {start.strftime('%Y-%m-%d %H:%M')} ===")
 
     print("\n--- Step 1: A股热股榜 ---")
-    collect_hot_rank()
-    collect_hot_up_rank()
-    collect_xueqiu_hot()
-    collect_xueqiu_follow()
+    _run_step("eastmoney_hot", collect_hot_rank)
+    _run_step("eastmoney_up", collect_hot_up_rank)
+    _run_step("xueqiu_hot", collect_xueqiu_hot)
+    _run_step("xueqiu_follow", collect_xueqiu_follow)
 
     print("\n--- Step 2: 港股数据 ---")
-    collect_southbound_flow()
-    collect_hk_hot_rank()
-    collect_xueqiu_hk_quote()
+    _run_step("hk_southbound", collect_southbound_flow)
+    _run_step("eastmoney_hk_hot", collect_hk_hot_rank)
+    _run_step("xueqiu_hk_quote", collect_xueqiu_hk_quote)
 
     print("\n--- Step 3: 批量抓个股新闻 ---")
     top_stocks = get_top_hot_stocks(20)
     print(f"  热股前20: {top_stocks}")
     for code in top_stocks:
-        collect_stock_news(code)
+        _run_step(f"stock_news_{code}", collect_stock_news, code)
 
     print("\n--- Step 3.5: 股吧帖子 ---")
-    crawl_guba(stock_codes=top_stocks)
+    _run_step("guba", crawl_guba, stock_codes=top_stocks)
 
     print("\n--- Step 4: 财新新闻 + 互动易问答 + 全球宏观 ---")
-    collect_telegraph()
-    collect_investor_qa()
-    collect_av_news()
+    _run_step("telegraph", collect_telegraph)
+    _run_step("investor_qa", collect_investor_qa)
+    _run_step("alpha_vantage", collect_av_news)
 
     print("\n--- Step 5: 情感打分 ---")
     run_news_sentiment()
