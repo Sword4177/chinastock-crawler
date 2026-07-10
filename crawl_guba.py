@@ -95,9 +95,8 @@ def enrich_top_posts(posts: list[dict], top_n: int = 5):
         time.sleep(0.3)
 
 
-def save_posts(posts: list[dict]):
-    for p in posts:
-        upsert_guba_post(p)
+def save_posts(posts: list[dict]) -> int:
+    return sum(upsert_guba_post(p) for p in posts)
 
 
 
@@ -118,13 +117,13 @@ def run(stock_codes: list[str] = None) -> int:
     for code in stock_codes:
         posts = fetch_guba(code, pages=2)
         enrich_top_posts(posts, top_n=5)
-        save_posts(posts)
+        written = save_posts(posts)
         with_content = sum(1 for p in posts if p["content"])
-        print(f"  [{code}] {len(posts)} 条，{with_content} 条含正文")
-        total += len(posts)
+        print(f"  [{code}] 抓到 {len(posts)} 条，写入 {written} 条，{with_content} 条含正文")
+        total += written
         time.sleep(0.3)
 
-    print(f"[股吧] 共入库 {total} 条")
+    print(f"[股吧] 共写入 {total} 条")
     return total
 
 

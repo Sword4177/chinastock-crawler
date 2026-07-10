@@ -88,8 +88,8 @@ def insert_capital_flow(rows: list[tuple]) -> int:
 
 # ── hk_quote ──────────────────────────────────────────────────────────────────
 
-def upsert_hk_quote(stock_code: str, item: dict, collected_at: str) -> None:
-    """写入或替换单支港股行情。"""
+def upsert_hk_quote(stock_code: str, item: dict, collected_at: str) -> int:
+    """写入或替换单支港股行情，返回 1 表示写入成功。"""
     conn = get_conn()
     conn.execute(
         """INSERT OR REPLACE INTO hk_quote
@@ -101,12 +101,13 @@ def upsert_hk_quote(stock_code: str, item: dict, collected_at: str) -> None:
     )
     conn.commit()
     conn.close()
+    return 1
 
 
 # ── guba_posts ─────────────────────────────────────────────────────────────────
 
-def upsert_guba_post(post: dict) -> None:
-    """写入或更新单条股吧帖子。"""
+def upsert_guba_post(post: dict) -> int:
+    """写入或更新单条股吧帖子，返回 1 表示写入成功。"""
     conn = get_conn()
     exists = conn.execute(
         "SELECT id FROM guba_posts WHERE post_id = ?", (post["post_id"],)
@@ -133,6 +134,7 @@ def upsert_guba_post(post: dict) -> None:
         )
     conn.commit()
     conn.close()
+    return 1
 
 
 # ── source_runs ────────────────────────────────────────────────────────────────

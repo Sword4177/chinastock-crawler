@@ -48,9 +48,8 @@ def collect_xueqiu_hk_quote() -> int:
         data = r.json().get("data", [])
         if not data:
             continue
-        upsert_hk_quote(code, data[0], NOW)
-        total += 1
-    print(f"[雪球港股行情] {total} 支")
+        total += upsert_hk_quote(code, data[0], NOW)
+    print(f"[雪球港股行情] {total} 支写入")
     return total
 
 
