@@ -24,6 +24,18 @@ def collect_southbound_flow() -> int:
     return n
 
 
+def collect_northbound_flow() -> int:
+    """北向资金流向"""
+    df = ak.stock_hsgt_fund_flow_summary_em()
+    df = df[df["资金方向"] == "北向"].copy()
+    df = df.rename(columns={"交易日": "trade_date", "资金净流入": "net_inflow", "成交净买额": "buy_amount"})
+    rows = [("A_northbound", row["trade_date"], row["net_inflow"], row["buy_amount"], None, NOW)
+            for _, row in df.iterrows()]
+    n = insert_capital_flow(rows)
+    print(f"[北向资金] {n} 条")
+    return n
+
+
 def collect_hk_hot_rank() -> int:
     """东财港股人气榜"""
     df = ak.stock_hk_hot_rank_em()

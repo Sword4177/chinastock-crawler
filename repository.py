@@ -2,14 +2,77 @@
 repository.py — 数据访问层
 所有 SQL 集中在此，业务代码不直接操作 DB。
 """
+import re
 from datetime import datetime
 from database import get_conn
+
+
+# ── stocks 主档 ────────────────────────────────────────────────────────────────
+
+def _derive_symbol(code: str, market: str) -> tuple[str, str, str]:
+    """根据代码和市场推导 (symbol, market, exchange)。
+    输入先做 normalization：去掉前后缀、验证格式，无法识别的返回 (None, None, None)。
+
+    A股：6xxxxx→.SH(SSE)，0/1/2/3xxxxx→.SZ(SZSE)，4/8/9xxxxx 北交所暂不处理跳过
+    港股：去掉 HK 前缀和 .HK 后缀，补齐 5 位纯数字
+    """
+    if not code:
+        return None, None, None
+
+    code = str(code).strip()
+
+    if market == "HK":
+        # 去掉 HK/hk 前缀和 .HK 后缀
+        code = re.sub(r'^(?:HK|hk)', '', code)
+        code = re.sub(r'\.HK$', '', code, flags=re.IGNORECASE)
+        if not code.isdigit():
+            return None, None, None
+        code = code.zfill(5)  # 港股补齐 5 位
+        return f"{code}.HK", "HK", "HKEX"
+
+    # A股：去掉已有后缀
+    code = re.sub(r'\.(SH|SZ|BJ)$', '', code, flags=re.IGNORECASE)
+    if not code.isdigit() or len(code) != 6:
+        return None, None, None
+
+    if code.startswith("6"):
+        return f"{code}.SH", "A", "SSE"
+    elif code[0] in ("0", "1", "2", "3"):
+        return f"{code}.SZ", "A", "SZSE"
+    else:
+        # 4/8/9xxxxx 含北交所，暂不处理
+        return None, None, None
+
+
+def upsert_stock(code: str, name: str, market: str) -> None:
+    """写入或更新股票主档（以 symbol 为唯一键）。
+    name 用 COALESCE 保留已有非空值，不会被 None 覆盖。
+    """
+    symbol, mkt, exchange = _derive_symbol(code, market)
+    if not symbol:
+        return
+    currency = "HKD" if market == "HK" else "CNY"
+    conn = get_conn()
+    conn.execute(
+        """INSERT INTO stocks (symbol, code, name, market, exchange, currency)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(symbol) DO UPDATE SET
+               name = COALESCE(excluded.name, stocks.name)""",
+        (symbol, code, name, mkt, exchange, currency),
+    )
+    conn.commit()
+    conn.close()
 
 
 # ── hot_rank ───────────────────────────────────────────────────────────────────
 
 def insert_hot_rank(rows: list[tuple]) -> int:
     """批量写入热股排行（每日快照口径，同源同股同天重复则忽略）。rows: [(source, rank, stock_code, stock_name, score, collected_at)]"""
+    # 同步 stocks 主档
+    for source, rank, code, name, score, collected_at in rows:
+        market = "HK" if "hk" in (source or "").lower() else "A"
+        upsert_stock(code, name, market)
+
     conn = get_conn()
     before = conn.total_changes
     conn.executemany(
@@ -90,6 +153,7 @@ def insert_capital_flow(rows: list[tuple]) -> int:
 
 def upsert_hk_quote(stock_code: str, item: dict, collected_at: str) -> int:
     """写入或替换单支港股行情，返回 1 表示写入成功。"""
+    upsert_stock(stock_code, item.get("name") or stock_code, "HK")
     conn = get_conn()
     conn.execute(
         """INSERT OR REPLACE INTO hk_quote
@@ -108,6 +172,7 @@ def upsert_hk_quote(stock_code: str, item: dict, collected_at: str) -> int:
 
 def upsert_guba_post(post: dict) -> int:
     """写入或更新单条股吧帖子，返回 1 表示写入成功。"""
+    upsert_stock(post.get("stock_code"), None, "A")
     conn = get_conn()
     exists = conn.execute(
         "SELECT id FROM guba_posts WHERE post_id = ?", (post["post_id"],)
