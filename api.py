@@ -149,8 +149,11 @@ def news_list(
         params.append(date_to + " 23:59:59")
 
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
-    params += [limit, offset]
 
+    total_row = query(f"SELECT COUNT(*) AS cnt FROM news {where}", tuple(params))
+    total = total_row[0]["cnt"]
+
+    params += [limit, offset]
     rows = query(
         f"""
         SELECT id, source, stock_code, title, sentiment, published_at, collected_at
@@ -162,7 +165,7 @@ def news_list(
         tuple(params),
     )
 
-    return {"total": len(rows), "limit": limit, "offset": offset, "data": rows}
+    return {"total": total, "limit": limit, "offset": offset, "data": rows}
 
 
 # ── 股吧帖子 ───────────────────────────────────────────────────────────────────
@@ -174,8 +177,14 @@ def guba_posts(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ):
-    """股吧帖子：返回指定股票最近 N 天的帖子，按阅读量排序。"""
+    """股吧帖子：返回指定股票最近 N 天的帖子，按阅读量排序。空页返回 200 + data:[]。"""
     logger.info("GET /api/guba/%s days=%d", stock_code, days)
+
+    total_row = query(
+        f"SELECT COUNT(*) AS cnt FROM guba_posts WHERE stock_code = ? AND collected_at >= datetime('now', '-{days} days')",
+        (stock_code,),
+    )
+    total = total_row[0]["cnt"]
 
     rows = query(
         f"""
@@ -188,10 +197,7 @@ def guba_posts(
         (stock_code, limit, offset),
     )
 
-    if not rows:
-        raise HTTPException(status_code=404, detail=f"No guba data for '{stock_code}' in last {days} days")
-
-    return {"stock_code": stock_code, "days": days, "total": len(rows), "limit": limit, "offset": offset, "data": rows}
+    return {"stock_code": stock_code, "days": days, "total": total, "limit": limit, "offset": offset, "data": rows}
 
 
 # ── 资金流向 ───────────────────────────────────────────────────────────────────
