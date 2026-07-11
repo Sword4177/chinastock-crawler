@@ -8,13 +8,146 @@ import time
 import traceback
 from collections import defaultdict
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from config import API_KEY
 from database import get_conn, init_db
+
+
+# ── Response Models ────────────────────────────────────────────────────────────
+
+class HotRankItem(BaseModel):
+    stock_code: Optional[str]
+    stock_name: Optional[str]
+    rank: Optional[int]
+    source: str
+    score: Optional[float]
+    snapshots: int
+
+class HotRankResponse(BaseModel):
+    date: str
+    source: str
+    total: int
+    data: List[HotRankItem]
+
+
+class NewsItem(BaseModel):
+    id: int
+    source: str
+    stock_code: Optional[str]
+    title: Optional[str]
+    sentiment: Optional[float]
+    published_at: Optional[str]
+    collected_at: str
+
+class NewsResponse(BaseModel):
+    total: int
+    limit: int
+    offset: int
+    data: List[NewsItem]
+
+
+class GubaPost(BaseModel):
+    post_id: Optional[str]
+    title: Optional[str]
+    author: Optional[str]
+    sentiment: Optional[float]
+    read_count: Optional[int]
+    reply_count: Optional[int]
+    updated_at: Optional[str]
+    collected_at: str
+
+class GubaResponse(BaseModel):
+    stock_code: str
+    days: int
+    total: int
+    limit: int
+    offset: int
+    data: List[GubaPost]
+
+
+class CapitalFlowItem(BaseModel):
+    market: str
+    trade_date: str
+    net_inflow: Optional[float]
+    buy_amount: Optional[float]
+    sell_amount: Optional[float]
+    collected_at: str
+
+class CapitalFlowResponse(BaseModel):
+    total: int
+    data: List[CapitalFlowItem]
+
+
+class HKQuoteResponse(BaseModel):
+    stock_code: str
+    current: Optional[float]
+    percent: Optional[float]
+    volume: Optional[int]
+    market_capital: Optional[float]
+    high: Optional[float]
+    low: Optional[float]
+    open: Optional[float]
+    collected_at: str
+
+
+class SentimentStats(BaseModel):
+    count: int
+    avg_sentiment: Optional[float]
+    bullish: int
+    bearish: int
+    neutral: int
+
+class SentimentGubaStats(SentimentStats):
+    total_reads: int
+
+class TopPost(BaseModel):
+    post_id: Optional[str]
+    title: Optional[str]
+    sentiment: Optional[float]
+    read_count: Optional[int]
+    reply_count: Optional[int]
+    updated_at: Optional[str]
+
+class SentimentResponse(BaseModel):
+    stock_code: str
+    days: int
+    combined_sentiment: float
+    news: SentimentStats
+    guba: SentimentGubaStats
+    top_posts: List[TopPost]
+
+
+class TimelinePoint(BaseModel):
+    date: str
+    count: int
+    avg_sentiment: Optional[float]
+
+class GubaTimelinePoint(TimelinePoint):
+    total_reads: Optional[int]
+
+class SentimentTimelineResponse(BaseModel):
+    stock_code: str
+    days: int
+    news_timeline: List[TimelinePoint]
+    guba_timeline: List[GubaTimelinePoint]
+
+
+class SourceRunItem(BaseModel):
+    source: str
+    status: str
+    row_count: int
+    error: Optional[str]
+    started_at: str
+    finished_at: Optional[str]
+
+class SourcesStatusResponse(BaseModel):
+    total: int
+    data: List[SourceRunItem]
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -85,7 +218,7 @@ def root():
 
 # ── 热股排行 ───────────────────────────────────────────────────────────────────
 
-@app.get("/api/hot", tags=["舆情"], dependencies=DEPS)
+@app.get("/api/hot", tags=["舆情"], dependencies=DEPS, response_model=HotRankResponse)
 def hot_rank(
     source: str = Query(
         "eastmoney_hot",
@@ -120,7 +253,7 @@ def hot_rank(
 
 # ── 新闻列表 ───────────────────────────────────────────────────────────────────
 
-@app.get("/api/news", tags=["新闻"], dependencies=DEPS)
+@app.get("/api/news", tags=["新闻"], dependencies=DEPS, response_model=NewsResponse)
 def news_list(
     stock_code: Optional[str] = Query(None, description="股票代码，不填返回全部"),
     source: Optional[str] = Query(None, description="数据源，如 eastmoney_news / caixin_news"),
@@ -170,7 +303,7 @@ def news_list(
 
 # ── 股吧帖子 ───────────────────────────────────────────────────────────────────
 
-@app.get("/api/guba/{stock_code}", tags=["股吧"], dependencies=DEPS)
+@app.get("/api/guba/{stock_code}", tags=["股吧"], dependencies=DEPS, response_model=GubaResponse)
 def guba_posts(
     stock_code: str,
     days: int = Query(7, ge=1, le=30, description="最近 N 天"),
@@ -202,7 +335,7 @@ def guba_posts(
 
 # ── 资金流向 ───────────────────────────────────────────────────────────────────
 
-@app.get("/api/capital-flow", tags=["资金"], dependencies=DEPS)
+@app.get("/api/capital-flow", tags=["资金"], dependencies=DEPS, response_model=CapitalFlowResponse)
 def capital_flow(
     market: Optional[str] = Query(None, description="市场，如 HK_southbound"),
     date_from: Optional[str] = Query(None, description="起始日期 YYYY-MM-DD"),
@@ -247,7 +380,7 @@ def capital_flow(
 
 # ── 港股行情 ───────────────────────────────────────────────────────────────────
 
-@app.get("/api/hk/quote/{stock_code}", tags=["港股"], dependencies=DEPS)
+@app.get("/api/hk/quote/{stock_code}", tags=["港股"], dependencies=DEPS, response_model=HKQuoteResponse)
 def hk_quote(stock_code: str):
     """港股行情：返回指定股票最新一条行情快照。"""
     logger.info("GET /api/hk/quote/%s", stock_code)
@@ -271,7 +404,7 @@ def hk_quote(stock_code: str):
 
 # ── 单股情绪快照 ───────────────────────────────────────────────────────────────
 
-@app.get("/api/sentiment/{stock_code}", tags=["舆情"], dependencies=DEPS)
+@app.get("/api/sentiment/{stock_code}", tags=["舆情"], dependencies=DEPS, response_model=SentimentResponse)
 def stock_sentiment(
     stock_code: str,
     days: int = Query(7, ge=1, le=30, description="统计最近 N 天"),
@@ -359,7 +492,7 @@ def stock_sentiment(
 
 # ── 情绪时间序列 ───────────────────────────────────────────────────────────────
 
-@app.get("/api/sentiment/{stock_code}/timeline", tags=["舆情"], dependencies=DEPS)
+@app.get("/api/sentiment/{stock_code}/timeline", tags=["舆情"], dependencies=DEPS, response_model=SentimentTimelineResponse)
 def sentiment_timeline(
     stock_code: str,
     days: int = Query(14, ge=1, le=90, description="最近 N 天"),
@@ -410,7 +543,7 @@ def sentiment_timeline(
 
 # ── 采集状态 ───────────────────────────────────────────────────────────────────
 
-@app.get("/api/sources/status", tags=["监控"], dependencies=DEPS)
+@app.get("/api/sources/status", tags=["监控"], dependencies=DEPS, response_model=SourcesStatusResponse)
 def sources_status():
     """采集任务状态：返回每个数据源最近一次采集记录。"""
     logger.info("GET /api/sources/status")
