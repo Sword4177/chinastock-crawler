@@ -226,6 +226,198 @@ GET /api/sentiment/600519?days=30
 
 ---
 
+### GET /api/news — 新闻列表
+
+**参数**
+
+| 参数 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `stock_code` | string | - | 股票代码，不填返回全部 |
+| `source` | string | - | 数据源，如 `eastmoney_news` / `caixin_news` |
+| `date_from` | string | - | 起始日期 `YYYY-MM-DD` |
+| `date_to` | string | - | 截止日期 `YYYY-MM-DD` |
+| `limit` | int | 20 | 每页条数（1-100） |
+| `offset` | int | 0 | 分页偏移 |
+
+**示例返回**
+
+```json
+{
+  "total": 128,
+  "limit": 20,
+  "offset": 0,
+  "data": [
+    {
+      "id": 301,
+      "source": "eastmoney_news",
+      "stock_code": "600519",
+      "title": "贵州茅台：2026年一季度净利润同比增长12%",
+      "sentiment": 0.333,
+      "published_at": "2026-07-10 09:30:00",
+      "collected_at": "2026-07-10 09:35:12"
+    }
+  ]
+}
+```
+
+---
+
+### GET /api/guba/{stock_code} — 股吧帖子
+
+**参数**
+
+| 参数 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `days` | int | 7 | 最近 N 天（1-30） |
+| `limit` | int | 20 | 每页条数（1-100） |
+| `offset` | int | 0 | 分页偏移，空页返回 200 + `data:[]` |
+
+**示例返回**
+
+```json
+{
+  "stock_code": "600519",
+  "days": 7,
+  "total": 42,
+  "limit": 20,
+  "offset": 0,
+  "data": [
+    {
+      "post_id": "1736164102",
+      "title": "茅台下周会突破1800吗？",
+      "author": "价值投资者",
+      "sentiment": 0.5,
+      "read_count": 21346,
+      "reply_count": 233,
+      "updated_at": "07-09 18:22",
+      "collected_at": "2026-07-10 09:35:12"
+    }
+  ]
+}
+```
+
+---
+
+### GET /api/capital-flow — 资金流向
+
+**参数**
+
+| 参数 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `market` | string | - | 市场，如 `HK_southbound` |
+| `date_from` | string | - | 起始日期 `YYYY-MM-DD` |
+| `date_to` | string | - | 截止日期 `YYYY-MM-DD` |
+| `limit` | int | 30 | 最多返回条数（1-100） |
+
+**示例返回**
+
+```json
+{
+  "total": 5,
+  "data": [
+    {
+      "market": "HK_southbound",
+      "trade_date": "2026-07-10",
+      "net_inflow": 82.3,
+      "buy_amount": 312.1,
+      "sell_amount": null,
+      "collected_at": "2026-07-10 09:35:12"
+    }
+  ]
+}
+```
+
+---
+
+### GET /api/hk/quote/{stock_code} — 港股行情
+
+返回指定港股最新一条行情快照，无数据返回 404。
+
+**示例请求**
+
+```
+GET /api/hk/quote/00700
+```
+
+**示例返回**
+
+```json
+{
+  "stock_code": "00700",
+  "current": 412.6,
+  "percent": 1.23,
+  "volume": 18234100,
+  "market_capital": 3952800000000,
+  "high": 415.0,
+  "low": 408.2,
+  "open": 409.0,
+  "collected_at": "2026-07-10 09:35:12"
+}
+```
+
+---
+
+### GET /api/sentiment/{stock_code}/timeline — 情绪时间序列
+
+按天聚合新闻和股吧情绪，返回趋势数据（非合并时间线，分开返回）。
+
+**参数**
+
+| 参数 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `days` | int | 14 | 最近 N 天（1-90） |
+
+**示例返回**
+
+```json
+{
+  "stock_code": "600519",
+  "days": 7,
+  "news_timeline": [
+    {"date": "2026-07-09", "count": 8, "avg_sentiment": 0.25},
+    {"date": "2026-07-10", "count": 5, "avg_sentiment": 0.4}
+  ],
+  "guba_timeline": [
+    {"date": "2026-07-09", "count": 12, "avg_sentiment": 0.1, "total_reads": 45230},
+    {"date": "2026-07-10", "count": 7, "avg_sentiment": 0.3, "total_reads": 21100}
+  ]
+}
+```
+
+---
+
+### GET /api/sources/status — 采集任务状态
+
+返回每个数据源最近一次采集记录，用于监控。
+
+**示例返回**
+
+```json
+{
+  "total": 10,
+  "data": [
+    {
+      "source": "eastmoney_hot",
+      "status": "success",
+      "row_count": 100,
+      "error": null,
+      "started_at": "2026-07-10 09:30:00",
+      "finished_at": "2026-07-10 09:30:05"
+    },
+    {
+      "source": "xueqiu_hk_quote",
+      "status": "skipped",
+      "row_count": 0,
+      "error": "XUEQIU_TOKEN 未设置",
+      "started_at": "2026-07-10 09:30:06",
+      "finished_at": "2026-07-10 09:30:06"
+    }
+  ]
+}
+```
+
+---
+
 ## Railway 部署
 
 1. 在 Railway 新建项目，连接 GitHub 仓库
@@ -255,11 +447,13 @@ curl -H "X-API-Key: your_key" https://your-app.railway.app/api/sentiment/600519
 
 | 表名 | 说明 |
 |---|---|
-| `hot_rank` | 各来源热股排行快照 |
-| `news` | 个股新闻 + 情感打分 |
+| `hot_rank` | 各来源热股排行快照（每日唯一） |
+| `news` | 个股新闻 + 情感打分（去重） |
 | `guba_posts` | 股吧帖子 + 正文 + 情感打分 |
 | `hk_quote` | 港股实时行情快照 |
-| `capital_flow` | 南向资金流 |
+| `capital_flow` | 南向资金流（按交易日去重） |
+| `stocks` | 股票主数据档案 |
+| `source_runs` | 每次采集任务状态记录（success/failed/skipped） |
 
 ---
 
