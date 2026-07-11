@@ -2,6 +2,7 @@
 repository.py — 数据访问层
 所有 SQL 集中在此，业务代码不直接操作 DB。
 """
+import re
 from datetime import datetime
 from database import get_conn
 
@@ -10,20 +11,43 @@ from database import get_conn
 
 def _derive_symbol(code: str, market: str) -> tuple[str, str, str]:
     """根据代码和市场推导 (symbol, market, exchange)。
-    A股：6开头→SH，其余→SZ；港股：直接加.HK
+    输入先做 normalization：去掉前后缀、验证格式，无法识别的返回 (None, None, None)。
+
+    A股：6xxxxx→.SH(SSE)，0/1/2/3xxxxx→.SZ(SZSE)，4/8/9xxxxx 北交所暂不处理跳过
+    港股：去掉 HK 前缀和 .HK 后缀，补齐 5 位纯数字
     """
     if not code:
         return None, None, None
+
+    code = str(code).strip()
+
     if market == "HK":
+        # 去掉 HK/hk 前缀和 .HK 后缀
+        code = re.sub(r'^(?:HK|hk)', '', code)
+        code = re.sub(r'\.HK$', '', code, flags=re.IGNORECASE)
+        if not code.isdigit():
+            return None, None, None
+        code = code.zfill(5)  # 港股补齐 5 位
         return f"{code}.HK", "HK", "HKEX"
-    # A股
-    exchange = "SSE" if code.startswith("6") else "SZSE"
-    suffix = "SH" if code.startswith("6") else "SZ"
-    return f"{code}.{suffix}", "A", exchange
+
+    # A股：去掉已有后缀
+    code = re.sub(r'\.(SH|SZ|BJ)$', '', code, flags=re.IGNORECASE)
+    if not code.isdigit() or len(code) != 6:
+        return None, None, None
+
+    if code.startswith("6"):
+        return f"{code}.SH", "A", "SSE"
+    elif code[0] in ("0", "1", "2", "3"):
+        return f"{code}.SZ", "A", "SZSE"
+    else:
+        # 4/8/9xxxxx 含北交所，暂不处理
+        return None, None, None
 
 
 def upsert_stock(code: str, name: str, market: str) -> None:
-    """写入或更新股票主档（以 symbol 为唯一键，name 有变化时更新）。"""
+    """写入或更新股票主档（以 symbol 为唯一键）。
+    name 用 COALESCE 保留已有非空值，不会被 None 覆盖。
+    """
     symbol, mkt, exchange = _derive_symbol(code, market)
     if not symbol:
         return
@@ -32,7 +56,8 @@ def upsert_stock(code: str, name: str, market: str) -> None:
     conn.execute(
         """INSERT INTO stocks (symbol, code, name, market, exchange, currency)
            VALUES (?, ?, ?, ?, ?, ?)
-           ON CONFLICT(symbol) DO UPDATE SET name=excluded.name""",
+           ON CONFLICT(symbol) DO UPDATE SET
+               name = COALESCE(excluded.name, stocks.name)""",
         (symbol, code, name, mkt, exchange, currency),
     )
     conn.commit()
