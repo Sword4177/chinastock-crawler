@@ -15,7 +15,7 @@ from collect_a_sentiment import (
     collect_hot_rank, collect_hot_up_rank, collect_stock_news, collect_telegraph,
     collect_xueqiu_hot, collect_xueqiu_follow, collect_investor_qa,
 )
-from collect_hk_sentiment import collect_southbound_flow, collect_hk_hot_rank, collect_xueqiu_hk_quote
+from collect_hk_sentiment import collect_southbound_flow, collect_northbound_flow, collect_hk_hot_rank, collect_xueqiu_hk_quote
 from collect_global_sentiment import collect_av_news
 from crawl_guba import run as crawl_guba, init_guba_table
 
@@ -83,8 +83,9 @@ def run():
     _run_step("xueqiu_hot", collect_xueqiu_hot)
     _run_step("xueqiu_follow", collect_xueqiu_follow)
 
-    print("\n--- Step 2: 港股数据 ---")
+    print("\n--- Step 2: 港股数据 + 北向资金 ---")
     _run_step("hk_southbound", collect_southbound_flow)
+    _run_step("a_northbound", collect_northbound_flow)
     _run_step("eastmoney_hk_hot", collect_hk_hot_rank)
     _run_step("xueqiu_hk_quote", collect_xueqiu_hk_quote)
 
